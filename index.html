@@ -2,141 +2,119 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
-  <title>AI プリセット共有サイト</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AIプリセット共有サイト</title>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body class="bg-gray-100">
   <div class="container mx-auto p-4">
-    <h1 class="text-3xl font-bold mb-4">AI プリセット共有サイト</h1>
-    <div id="formContainer" class="mb-6 bg-white p-4 rounded shadow">
-      <h2 class="text-xl font-semibold mb-2">プリセットを投稿</h2>
+    <h1 class="text-3xl font-bold mb-4">AIプリセット共有サイト</h1>
+    <div class="bg-white p-4 rounded shadow mb-4">
+      <h2 class="text-xl font-semibold mb-2">新しいプリセットを投稿</h2>
       <form id="presetForm" class="space-y-2">
         <input type="text" id="name" placeholder="名前" class="w-full p-2 border rounded" required>
-        <input type="text" id="persona" placeholder="キャラクター/パーソナリティ（例: 優しい友達）" class="w-full p-2 border rounded">
-        <input type="text" id="mbti" placeholder="MBTI（例: ENFP）" class="w-full p-2 border rounded">
-        <input type="text" id="tone" placeholder="口調（例: 敬語、カジュアル）" class="w-full p-2 border rounded">
-        <input type="text" id="brightness" placeholder="明るさ（例: 陽気、落ち着き）" class="w-full p-2 border rounded">
-        <input type="text" id="tags" placeholder="タグ（カンマ区切り）" class="w-full p-2 border rounded">
-        <input type="text" id="image_url" placeholder="画像URL" class="w-full p-2 border rounded">
+        <input type="text" id="persona" placeholder="キャラクター/ペルソナ" class="w-full p-2 border rounded">
+        <input type="text" id="tags" placeholder="タグ(カンマ区切り)" class="w-full p-2 border rounded">
         <textarea id="prompt" placeholder="プロンプト" class="w-full p-2 border rounded" rows="4" required></textarea>
-        <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">投稿する</button>
+        <button type="submit" class="bg-blue-500 text-white px-4 py-2 rounded">投稿する</button>
       </form>
     </div>
-    <h2 class="text-2xl font-semibold mb-3">公開プリセット</h2>
-    <div id="presetList" class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3"></div>
+    <div class="flex justify-between items-center mb-4">
+      <input id="searchInput" type="text" placeholder="検索" class="w-1/2 p-2 border rounded">
+      <select id="sortSelect" class="p-2 border rounded">
+        <option value="new">新着順</option>
+        <option value="popular">人気順</option>
+      </select>
+    </div>
+    <div id="presetList" class="grid grid-cols-1 md:grid-cols-2 gap-4"></div>
   </div>
+  <script>
+    const supabase = supabase.createClient("https://izmqiahahcsifhjtpgtd.supabase.co", "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Iml6bXFpYWhhaGNzaWZoanRwZ3RkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTg3MTI4NDIsImV4cCI6MjA3NDI4ODg0Mn0.LNnuAlfOekakZCVyGC7IA_NgYfy1BGe34PcxS8miAMw");
+    let presets = [];
+    let likes = JSON.parse(localStorage.getItem('likes') || '{}');
+    let copies = JSON.parse(localStorage.getItem('copies') || '{}');
 
-<script>
-const supabaseUrl = "https://izmqiahahcsifhjtpgtd.supabase.co";
-const supabaseAnonKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Iml6bXFpYWhhaGNzaWZoanRwZ3RkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTg3MTI4NDIsImV4cCI6MjA3NDI4ODg0Mn0.LNnuAlfOekakZCVyGC7IA_NgYfy1BGe34PcxS8miAMw";
-const supabase = supabase.createClient(supabaseUrl, supabaseAnonKey);
-
-// フォーム送信処理
-const form = document.getElementById('presetForm');
-form.addEventListener('submit', async (e) => {
-  e.preventDefault();
-  const name = document.getElementById('name').value.trim();
-  const persona = document.getElementById('persona').value.trim();
-  const mbti = document.getElementById('mbti').value.trim();
-  const tone = document.getElementById('tone').value.trim();
-  const brightness = document.getElementById('brightness').value.trim();
-  const tags = document.getElementById('tags').value.split(',').map(tag => tag.trim()).filter(tag => tag);
-  const image_url = document.getElementById('image_url').value.trim();
-  const prompt = document.getElementById('prompt').value.trim();
-  if (!name || !prompt) {
-    alert('名前とプロンプトは必須です。');
-    return;
-  }
-  // Supabase へ挿入
-  const { data, error } = await supabase.from('presets').insert([{
-    name: name,
-    persona: persona || null,
-    mbti: mbti || null,
-    tone: tone || null,
-    brightness: brightness || null,
-    tags: tags.length > 0 ? tags : null,
-    image_url: image_url || null,
-    prompt: prompt,
-    status: 'public'
-  }]);
-  if (error) {
-    console.error('投稿に失敗しました', error);
-    alert('投稿に失敗しました: ' + error.message);
-    return;
-  }
-  // 成功: フォームをリセットして一覧をリロード
-  form.reset();
-  loadPresets();
-});
-
-// プリセット一覧を取得して表示
-async function loadPresets() {
-  const list = document.getElementById('presetList');
-  list.innerHTML = '読み込み中...';
-  const { data, error } = await supabase.from('presets').select('*').eq('status', 'public').order('created_at', { ascending: false });
-  if (error) {
-    console.error('取得に失敗しました', error);
-    list.innerHTML = '取得に失敗しました: ' + error.message;
-    return;
-  }
-  list.innerHTML = '';
-  data.forEach(item => {
-    const card = document.createElement('div');
-    card.className = 'bg-white rounded shadow p-4 flex flex-col';
-    if (item.image_url) {
-      const img = document.createElement('img');
-      img.src = item.image_url;
-      img.alt = item.name;
-      img.className = 'w-full h-40 object-cover rounded-t';
-      card.appendChild(img);
-    }
-    const title = document.createElement('h3');
-    title.className = 'text-xl font-semibold mt-2';
-    title.textContent = item.name;
-    card.appendChild(title);
-
-    if (item.persona) {
-      const personaEl = document.createElement('p');
-      personaEl.className = 'text-sm text-gray-600';
-      personaEl.textContent = item.persona;
-      card.appendChild(personaEl);
+    async function loadPresets() {
+      const { data, error } = await supabase.from('presets').select('*').order('created_at', { ascending: false });
+      if (data) {
+        presets = data;
+        renderPresets();
+      }
     }
 
-    // タグ表示
-    if (item.tags && item.tags.length > 0) {
-      const tagsDiv = document.createElement('div');
-      tagsDiv.className = 'flex flex-wrap mt-2';
-      item.tags.forEach(tag => {
-      const span = document.createElement('span');
-        span.className = 'text-xs bg-blue-100 text-blue-800 rounded px-2 py-1 mr-1 mb-1';
-        span.textContent = tag;
-        tagsDiv.appendChild(span);
+    function renderPresets() {
+      const search = document.getElementById('searchInput').value.toLowerCase();
+      let list = presets.filter(p => {
+        return (p.name && p.name.toLowerCase().includes(search)) ||
+               (p.persona && p.persona.toLowerCase().includes(search)) ||
+               (p.tags && p.tags.join(',').toLowerCase().includes(search));
       });
-      card.appendChild(tagsDiv);
+      const sort = document.getElementById('sortSelect').value;
+      if (sort === 'popular') {
+        list.sort((a,b) => ((likes[b.id] ? 1 : 0) + (copies[b.id] ? 1 : 0)) - ((likes[a.id] ? 1 : 0) + (copies[a.id] ? 1 : 0)));
+      }
+      const container = document.getElementById('presetList');
+      container.innerHTML = '';
+      list.forEach(p => {
+        const liked = !!likes[p.id];
+        const copied = !!copies[p.id];
+        const card = document.createElement('div');
+        card.className = 'bg-white p-4 rounded shadow';
+        card.innerHTML = `
+          <h3 class="text-xl font-bold">${p.name || ''}</h3>
+          <p class="text-sm text-gray-600 mb-1">${p.persona || ''}</p>
+          <p class="text-xs text-gray-500 mb-2">${(p.tags || []).join(', ')}</p>
+          <button class="text-blue-500 underline text-sm" onclick="togglePrompt('${p.id}')">プロンプトを見る</button>
+          <pre id="prompt-${p.id}" class="mt-2 hidden whitespace-pre-wrap">${p.prompt || ''}</pre>
+          <div class="flex space-x-4 mt-2">
+            <button onclick="toggleLike('${p.id}')" class="${liked ? 'text-red-500' : 'text-gray-500'}">♥ ${liked ? 'いいね済み' : 'いいね'}</button>
+            <button onclick="copyPrompt('${p.id}', \`${p.prompt ? p.prompt.replace(/`/g, '\\`') : ''}\`)" class="${copied ? 'text-green-500' : 'text-gray-500'}">📋 ${copied ? 'コピー済み' : 'コピー'}</button>
+          </div>
+        `;
+        container.appendChild(card);
+      });
     }
 
-    // プロンプト表示エリア
-    const promptBtn = document.createElement('button');
-    promptBtn.className = 'mt-3 px-3 py-1 bg-gray-200 rounded hover:bg-gray-300 text-sm';
-    promptBtn.textContent = 'プロンプトを見る';
-    card.appendChild(promptBtn);
-    const promptDiv = document.createElement('pre');
-    promptDiv.className = 'mt-2 whitespace-pre-wrap break-words p-2 bg-gray-50 rounded hidden';
-    promptDiv.textContent = item.prompt;
-    card.appendChild(promptDiv);
-    promptBtn.addEventListener('click', () => {
-      promptDiv.classList.toggle('hidden');
+    function togglePrompt(id) {
+      const el = document.getElementById('prompt-' + id);
+      if (el) el.classList.toggle('hidden');
+    }
+
+    function toggleLike(id) {
+      likes[id] = !likes[id];
+      localStorage.setItem('likes', JSON.stringify(likes));
+      renderPresets();
+    }
+
+    function copyPrompt(id, text) {
+      if (!copies[id]) {
+        navigator.clipboard.writeText(text);
+        copies[id] = true;
+        localStorage.setItem('copies', JSON.stringify(copies));
+        renderPresets();
+      }
+    }
+
+    document.getElementById('presetForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const name = document.getElementById('name').value.trim();
+      const persona = document.getElementById('persona').value.trim();
+      const tags = document.getElementById('tags').value.split(',').map(t => t.trim()).filter(Boolean);
+      const prompt = document.getElementById('prompt').value.trim();
+      const { data, error } = await supabase.from('presets').insert([{ name, persona, tags, prompt, status: 'public' }]);
+      if (!error) {
+        e.target.reset();
+        loadPresets();
+      } else {
+        alert('投稿に失敗しました');
+      }
     });
 
-    list.appendChild(card);
-  });
-}
+    document.getElementById('searchInput').addEventListener('input', renderPresets);
+    document.getElementById('sortSelect').addEventListener('change', renderPresets);
 
-// 初期読み込み
-document.addEventListener('DOMContentLoaded', loadPresets);
-</script>
-
+    loadPresets();
+  </script>
 </body>
 </html>
