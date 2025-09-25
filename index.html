@@ -1,311 +1,499 @@
 <!DOCTYPE html>
-<html lang="ja">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>会話相手AIプリセット・ハブ</title>
-    <!-- Tailwind CSS -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    <!-- React and ReactDOM (development builds) -->
-    <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
-    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
-    <!-- Framer Motion -->
-    <script crossorigin src="https://unpkg.com/framer-motion/dist/framer-motion.umd.js"></script>
-    <!-- Lucide React Icons -->
-    <script crossorigin src="https://unpkg.com/lucide-react@latest/dist/lucide-react.umd.js"></script>
-    <!-- Supabase JS (UMD) -->
-    <script crossorigin src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js"></script>
-    <!-- Babel for JSX transformation in the browser -->
-    <script crossorigin src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-    <style>
-      /* Custom scrollbars for dark mode */
-      body.dark::-webkit-scrollbar {
-        width: 8px;
-      }
-      body.dark::-webkit-scrollbar-track {
-        background: rgba(255, 255, 255, 0.1);
-      }
-      body.dark::-webkit-scrollbar-thumb {
-        background: rgba(255, 255, 255, 0.3);
-        border-radius: 4px;
-      }
-    </style>
-  </head>
-  <body class="min-h-screen">
-    <div id="root"></div>
-    <script type="text/babel">
-      // -----------------------------------------------------------
-      // Configuration: Supabase credentials and admin email
-      // Provided by the user
-      const SUPABASE_URL = "https://izmqiahahcsifhjtpgtd.supabase.co";
-      const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Iml6bXFpYWhhaGNzaWZoanRwZ3RkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTg3MTI4NDIsImV4cCI6MjA3NDI4ODg0Mn0.LNnuAlfOekakZCVyGC7IA_NgYfy1BGe34PcxS8miAMw";
-      const ADMIN_EMAIL = "";
-
-      // Initialize Supabase client if credentials are provided
-      const supabase = (typeof window !== 'undefined' && window.supabase && SUPABASE_URL && SUPABASE_ANON_KEY)
-        ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
-        : null;
-
-      // -----------------------------------------------------------
-      // Import required libraries from global objects
-      const { useState, useEffect, useMemo } = React;
-      const { motion } = Motion;
-      const {
-        Copy,
-        Check,
-        Search,
-        Filter,
-        MessageSquareHeart,
-        Sparkles,
-        Sun,
-        Moon,
-        Heart,
-        HeartHandshake,
-        TrendingUp,
-        Clock,
-        Plus,
-        Image: ImageIcon,
-        LogIn,
-        LogOut,
-        Mail,
-      } = LucideReact;
-
-      // Utility: compose class names
-      const classNames = (...c) => c.filter(Boolean).join(" ");
-      const now = () => Date.now();
-
-      // Dark mode hook
-      function useDarkMode() {
-        const [dark, setDark] = useState(false);
-        useEffect(() => {
-          // Apply dark class to <html> element
-          document.documentElement.classList.toggle("dark", dark);
-        }, [dark]);
-        return { dark, setDark };
-      }
-
-      // LocalStorage hook
-      function useLocalStorage(key, initial) {
-        const [val, setVal] = useState(() => {
-          try {
-            const s = localStorage.getItem(key);
-            return s ? JSON.parse(s) : initial;
-          } catch {
-            return initial;
-          }
-        });
-        useEffect(() => {
-          try {
-            localStorage.setItem(key, JSON.stringify(val));
-          } catch {}
-        }, [key, val]);
-        return [val, setVal];
-      }
-
-      // Seed data
-      const SEED = [
+<html lang="ja" class="">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>会話相手AIプリセット・ハブ</title>
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Supabase JS -->
+  <script src="https://unpkg.com/@supabase/supabase-js@2.39.4/dist/umd/supabase.js"></script>
+  <style>
+    /* Dark mode support: toggle on <html> element */
+    :root { color-scheme: light dark; }
+  </style>
+</head>
+<body class="bg-gray-50 text-gray-800 dark:bg-gray-900 dark:text-gray-200">
+  <!-- Header -->
+  <header class="sticky top-0 z-20 bg-white/80 dark:bg-gray-800/80 backdrop-blur border-b border-gray-200 dark:border-gray-700">
+    <div class="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between">
+      <h1 class="text-xl sm:text-2xl font-bold">会話相手AIプリセット・ハブ</h1>
+      <div class="flex items-center space-x-2">
+        <button id="openModalBtn" class="px-3 py-1.5 text-sm rounded border bg-white dark:bg-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600">投稿する</button>
+        <button id="themeToggle" class="px-3 py-1.5 text-sm rounded border bg-white dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600">テーマ</button>
+      </div>
+    </div>
+  </header>
+  <!-- Main content -->
+  <main class="max-w-6xl mx-auto px-4 py-6">
+    <!-- Search & sort -->
+    <div class="flex flex-col sm:flex-row sm:space-x-4 space-y-4 sm:space-y-0">
+      <input id="searchInput" type="text" placeholder="検索: 名前 / 特徴 / MBTI / 役割" class="flex-1 border rounded-xl px-3 py-2" />
+      <select id="sortSelect" class="border rounded-xl px-3 py-2">
+        <option value="popular">人気順</option>
+        <option value="newest">新着順</option>
+        <option value="copies">コピー数</option>
+      </select>
+    </div>
+    <!-- Tag filter -->
+    <div id="tagFilter" class="flex flex-wrap gap-2 my-4"></div>
+    <!-- Presets list -->
+    <div id="presetsList" class="grid gap-4 md:grid-cols-2"></div>
+  </main>
+  <!-- Footer -->
+  <footer class="text-center text-xs text-gray-500 dark:text-gray-400 py-8">&copy; <span id="year"></span> Conversation Partner Preset Hub</footer>
+  <!-- Modal for posting -->
+  <div id="modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/50">
+    <div class="bg-white dark:bg-gray-800 rounded-2xl p-6 w-full max-w-2xl overflow-y-auto max-h-screen">
+      <div class="flex justify-between mb-4">
+        <h2 class="text-lg font-semibold">新規プリセットを投稿</h2>
+        <button id="closeModalBtn" class="text-sm px-2 py-1 rounded border">閉じる</button>
+      </div>
+      <form id="postForm" class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+        <label class="grid gap-1">
+          <span class="text-xs text-gray-500">名前*</span>
+          <input name="name" required class="w-full rounded-xl border px-3 py-2 bg-white/80 dark:bg-gray-700" />
+        </label>
+        <label class="grid gap-1">
+          <span class="text-xs text-gray-500">タイトル</span>
+          <input name="title" class="w-full rounded-xl border px-3 py-2 bg-white/80 dark:bg-gray-700" />
+        </label>
+        <label class="grid gap-1">
+          <span class="text-xs text-gray-500">画像URL</span>
+          <input name="image" class="w-full rounded-xl border px-3 py-2 bg-white/80 dark:bg-gray-700" placeholder="https://..." />
+        </label>
+        <label class="grid gap-1">
+          <span class="text-xs text-gray-500">MBTI</span>
+          <input name="mbti" class="w-full rounded-xl border px-3 py-2 bg-white/80 dark:bg-gray-700" placeholder="例: ENFP" />
+        </label>
+        <label class="grid gap-1">
+          <span class="text-xs text-gray-500">性別</span>
+          <input name="gender" class="w-full rounded-xl border px-3 py-2 bg-white/80 dark:bg-gray-700" placeholder="男性/女性/その他/未設定" />
+        </label>
+        <label class="grid gap-1">
+          <span class="text-xs text-gray-500">口調</span>
+          <input name="tone" class="w-full rounded-xl border px-3 py-2 bg-white/80 dark:bg-gray-700" placeholder="丁寧/カジュアル/厳しめ 等" />
+        </label>
+        <label class="grid gap-1">
+          <span class="text-xs text-gray-500">雰囲気</span>
+          <input name="brightness" class="w-full rounded-xl border px-3 py-2 bg-white/80 dark:bg-gray-700" placeholder="明るめ/落ち着き 等" />
+        </label>
+        <label class="grid gap-1 sm:col-span-2">
+          <span class="text-xs text-gray-500">目的</span>
+          <input name="goal" class="w-full rounded-xl border px-3 py-2 bg-white/80 dark:bg-gray-700" placeholder="相談/雑談/学習 等" />
+        </label>
+        <label class="grid gap-1 sm:col-span-2">
+          <span class="text-xs text-gray-500">特徴</span>
+          <textarea name="traits" rows="2" class="w-full rounded-xl border px-3 py-2 bg-white/80 dark:bg-gray-700" placeholder="例: 優しい・共感的・聞き上手"></textarea>
+        </label>
+        <label class="grid gap-1 sm:col-span-2">
+          <span class="text-xs text-gray-500">ペルソナ概要</span>
+          <textarea name="persona" rows="2" class="w-full rounded-xl border px-3 py-2 bg-white/80 dark:bg-gray-700" placeholder="1-3文で"></textarea>
+        </label>
+        <label class="grid gap-1 sm:col-span-2">
+          <span class="text-xs text-gray-500">タグ (カンマ区切り)</span>
+          <input name="tags" class="w-full rounded-xl border px-3 py-2 bg-white/80 dark:bg-gray-700" placeholder="優しい,共感,相談" />
+        </label>
+        <label class="grid gap-1 sm:col-span-2">
+          <span class="text-xs text-gray-500">スタータープロンプト*</span>
+          <textarea name="starterPrompt" rows="3" required class="w-full rounded-xl border px-3 py-2 bg-white/80 dark:bg-gray-700" placeholder="そのままコピーできる指示文"></textarea>
+        </label>
+        <label class="grid gap-1 sm:col-span-2">
+          <span class="text-xs text-gray-500">サンプル会話 (ユーザー)</span>
+          <textarea name="sampleUser" rows="2" class="w-full rounded-xl border px-3 py-2 bg-white/80 dark:bg-gray-700"></textarea>
+        </label>
+        <label class="grid gap-1 sm:col-span-2">
+          <span class="text-xs text-gray-500">サンプル会話 (AI)</span>
+          <textarea name="sampleAssistant" rows="2" class="w-full rounded-xl border px-3 py-2 bg-white/80 dark:bg-gray-700"></textarea>
+        </label>
+      </form>
+      <div class="mt-4 flex justify-between items-center text-xs text-gray-500 dark:text-gray-400">
+        <span>※ 画像は権利に注意。投稿は利用規約/モデレーション対象。</span>
+        <button id="submitBtn" class="px-4 py-2 text-sm rounded bg-black text-white dark:bg-white dark:text-black">投稿する</button>
+      </div>
+    </div>
+  </div>
+  <!-- Script -->
+  <script>
+    (() => {
+      // Supabase connection: embed the provided credentials
+      const SUPABASE_URL = 'https://izmqiahahcsifhjtpgtd.supabase.co';
+      const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Iml6bXFpYWhhaGNzaWZoanRwZ3RkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTg3MTI4NDIsImV4cCI6MjA3NDI4ODg0Mn0.LNnuAlfOekakZCVyGC7IA_NgYfy1BGe34PcxS8miAMw';
+      const supabase = (typeof window.supabase !== 'undefined') ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
+      // Local storage helpers
+      const getLS = (key, def) => {
+        try { const s = localStorage.getItem(key); return s ? JSON.parse(s) : def; } catch (e) { return def; }
+      };
+      const setLS = (key, val) => {
+        try { localStorage.setItem(key, JSON.stringify(val)); } catch {}
+      };
+      // Seeds for fallback
+      const seeds = [
         {
-          id: "yukari",
-          name: "ゆかり",
-          title: "優しい聞き役の友人",
-          image: "https://images.unsplash.com/photo-1560250097-0b93528c311a?auto=format&fit=crop&w=800&q=60",
-          persona: "相手の気持ちに寄り添う癒やし系。安心して話せる雰囲気をつくる。",
-          traits: "優しい・共感的・聞き上手",
-          goal: "感情整理／安心して話す",
-          mbti: "ISFJ",
-          gender: "女性",
-          tone: "丁寧/やわらか",
-          brightness: "明るめ",
-          tags: ["優しい", "共感", "相談"],
-          starterPrompt: `あなたは『優しい聞き役の友人』です。\n- 共感→要約→オープン質問の順で進める\n- 評価や断定は避ける\n- 必要なときだけ提案を1つまで`,
+          id: 'yukari',
+          name: 'ゆかり',
+          title: '優しい聞き役の友人',
+          image: 'https://images.unsplash.com/photo-1560250097-0b93528c311a?auto=format&fit=crop&w=800&q=60',
+          persona: '相手の気持ちに寄り添う癒やし系。安心して話せる雰囲気をつくる。',
+          traits: '優しい・共感的・聞き上手',
+          goal: '感情整理／安心して話す',
+          mbti: 'ISFJ',
+          gender: '女性',
+          tone: '丁寧/やわらか',
+          brightness: '明るめ',
+          tags: ['優しい','共感','相談'],
+          starterPrompt: 'あなたは「優しい聞き役の友人」です。\n- 共感→要約→オープン質問の順で進める\n- 評価や断定は避ける\n- 必要なときだけ提案を1つまで',
           sampleDialog: [
-            { role: "user", text: "研究が進まなくて焦る。" },
-            { role: "assistant", text: "焦りが強いんだね。どの場面で一番強く出る？一緒に区切って考えてみよう。" },
+            { role: 'user', text: '研究が進まなくて焦る。' },
+            { role: 'assistant', text: '焦りが強いんだね。どの場面で一番強く出る？一緒に区切って考えてみよう。' }
           ],
-          likes: 21,
-          copies: 58,
-          createdAt: now() - 1000 * 60 * 60 * 24 * 9,
+          likes: 21, copies: 58, createdAt: Date.now() - 1000 * 60 * 60 * 24 * 9
         },
         {
-          id: "takeshi",
-          name: "たけし",
-          title: "ストイック現実コーチ",
-          image: "https://images.unsplash.com/photo-1519345182560-3f2917c472ef?auto=format&fit=crop&w=800&q=60",
-          persona: "遠慮なく核心を突く。目標達成のために最短の行動を示す。",
-          traits: "厳しめ・論理的・短文",
-          goal: "意思決定／行動計画",
-          mbti: "ENTJ",
-          gender: "男性",
-          tone: "断定/簡潔",
-          brightness: "中庸",
-          tags: ["厳しめ", "論理", "コーチング"],
-          starterPrompt: `あなたは『ストイックな現実コーチ』です。\n- 形式: 結論(1行)→理由(最大3)→次の3ステップ\n- 迷いが多い場合は判断軸を3つに限定\n- 医療/法律/投資は一般情報のみ`,
+          id: 'takeshi',
+          name: 'たけし',
+          title: 'ストイック現実コーチ',
+          image: 'https://images.unsplash.com/photo-1519345182560-3f2917c472ef?auto=format&fit=crop&w=800&q=60',
+          persona: '遠慮なく核心を突く。目標達成のために最短の行動を示す。',
+          traits: '厳しめ・論理的・短文',
+          goal: '意思決定／行動計画',
+          mbti: 'ENTJ',
+          gender: '男性',
+          tone: '断定/簡潔',
+          brightness: '中庸',
+          tags: ['厳しめ','論理','コーチング'],
+          starterPrompt: 'あなたは「ストイックな現実コーチ」です。\n- 形式: 結論(1行)→理由(最大3)→次の3ステップ\n- 迷いが多い場合は判断軸を3つに限定\n- 医療/法律/投資は一般情報のみ',
           sampleDialog: [
-            { role: "user", text: "転職迷い中。決めきれない。" },
-            { role: "assistant", text: "結論: 今週末に決めろ。理由: 情報過多/軸不明/期限無。次の3ステップ: 軸=年収/裁量/成長、5段階比較、日曜18時に結論。" },
+            { role: 'user', text: '転職迷い中。決めきれない。' },
+            { role: 'assistant', text: '結論: 今週末に決めろ。理由: 情報過多/軸不明/期限無。次の3ステップ: 軸=年収/裁量/成長、5段階比較、日曜18時に結論。' }
           ],
-          likes: 35,
-          copies: 92,
-          createdAt: now() - 1000 * 60 * 60 * 24 * 6,
-        },
+          likes: 35, copies: 92, createdAt: Date.now() - 1000 * 60 * 60 * 24 * 6
+        }
       ];
-
-      // Auth hook (only functional if supabase is set up)
-      function useAuth() {
-        const [session, setSession] = useState(null);
-        const [loading, setLoading] = useState(true);
-        const [inviteOK, setInviteOK] = useState(false);
-        const [isAdmin, setIsAdmin] = useState(false);
-        useEffect(() => {
-          let mounted = true;
-          if (!supabase) { setLoading(false); return; }
-          supabase.auth.getSession().then(({ data }) => {
-            if (!mounted) return;
-            setSession(data.session);
-            setLoading(false);
-          });
-          const { data: sub } = supabase.auth.onAuthStateChange((_event, sess) => {
-            setSession(sess || null);
-          });
-          return () => {
-            mounted = false;
-            sub?.subscription?.unsubscribe?.();
-          };
-        }, []);
-        useEffect(() => {
-          (async () => {
-            if (!session || !supabase) { setInviteOK(false); setIsAdmin(false); return; }
-            const email = session.user?.email?.toLowerCase();
-            setIsAdmin(!!ADMIN_EMAIL && email === ADMIN_EMAIL.toLowerCase());
+      // State
+      let presets = [];
+      let likes = getLS('cpp_likes', {});
+      let copies = getLS('cpp_copies', {});
+      let favorites = getLS('cpp_fav', {});
+      let searchQuery = '';
+      let selectedTags = [];
+      let sortMode = 'popular';
+      // Elements
+      const listEl = document.getElementById('presetsList');
+      const tagFilterEl = document.getElementById('tagFilter');
+      const searchInput = document.getElementById('searchInput');
+      const sortSelect = document.getElementById('sortSelect');
+      const modal = document.getElementById('modal');
+      const openModalBtn = document.getElementById('openModalBtn');
+      const closeModalBtn = document.getElementById('closeModalBtn');
+      const postForm = document.getElementById('postForm');
+      const submitBtn = document.getElementById('submitBtn');
+      const themeToggle = document.getElementById('themeToggle');
+      // Load initial data
+      async function loadPresets() {
+        presets = [...seeds];
+        if (supabase) {
+          try {
             const { data, error } = await supabase
-              .from('allowlist')
-              .select('email')
-              .eq('email', email)
-              .maybeSingle();
-            setInviteOK(!!data && !error);
-          })();
-        }, [session]);
-        const signInWithEmail = async (email) => {
-          if (!supabase) {
-            alert('プレビューではログインは無効です（本番環境で有効化）');
-            return;
+              .from('presets')
+              .select('*')
+              .eq('status', 'public')
+              .order('created_at', { ascending: false });
+            if (!error && Array.isArray(data)) {
+              const converted = data.map((row) => ({
+                id: row.id || Math.random().toString(36).slice(2),
+                name: row.name,
+                title: row.title,
+                image: row.image_url || '',
+                persona: row.persona,
+                traits: row.traits,
+                goal: row.goal,
+                mbti: row.mbti,
+                gender: row.gender,
+                tone: row.tone,
+                brightness: row.brightness,
+                tags: row.tags || [],
+                starterPrompt: row.prompt,
+                sampleDialog: row.sample || [],
+                likes: 0,
+                copies: 0,
+                createdAt: new Date(row.created_at).getTime(),
+              }));
+              presets = [...converted, ...presets];
+            }
+          } catch (e) {
+            console.warn('Supabaseからの取得に失敗', e);
           }
-          const { error } = await supabase.auth.signInWithOtp({
-            email,
-            options: { emailRedirectTo: typeof window !== 'undefined' ? window.location.href : undefined },
+        }
+        render();
+        updateTagFilter();
+      }
+      // Render presets list
+      function render() {
+        const filtered = presets.filter((p) => {
+          const q = searchQuery.trim().toLowerCase();
+          const qHit = !q || [p.name, p.title, p.persona, p.traits, p.goal, p.mbti, p.tone].join(' ').toLowerCase().includes(q);
+          const tagHit = selectedTags.length === 0 || selectedTags.every((t) => p.tags.includes(t));
+          return qHit && tagHit;
+        }).sort((a, b) => {
+          if (sortMode === 'popular') {
+            const aScore = (a.likes || 0) + (a.copies || 0);
+            const bScore = (b.likes || 0) + (b.copies || 0);
+            return bScore - aScore;
+          }
+          if (sortMode === 'newest') {
+            return b.createdAt - a.createdAt;
+          }
+          if (sortMode === 'copies') {
+            return (b.copies || 0) - (a.copies || 0);
+          }
+          return 0;
+        });
+        listEl.innerHTML = '';
+        if (filtered.length === 0) {
+          listEl.innerHTML = '<div class="text-gray-500 dark:text-gray-400 py-12">該当するプリセットがありません。</div>';
+          return;
+        }
+        filtered.forEach((p) => {
+          const card = document.createElement('div');
+          card.className = 'rounded-2xl border overflow-hidden shadow-md bg-white dark:bg-gray-800 flex flex-col md:flex-row';
+          // Image
+          const imgDiv = document.createElement('div');
+          imgDiv.className = 'md:w-1/3 h-40 md:h-auto overflow-hidden';
+          const img = document.createElement('img');
+          img.src = p.image || 'https://placehold.co/400x300?text=No+Image';
+          img.alt = p.name;
+          img.className = 'object-cover w-full h-full';
+          imgDiv.appendChild(img);
+          // Content
+          const cont = document.createElement('div');
+          cont.className = 'p-4 flex-1 flex flex-col';
+          const header = document.createElement('div');
+          header.className = 'flex justify-between items-start mb-2';
+          const nameEl = document.createElement('div');
+          nameEl.innerHTML = `<h3 class="text-lg font-semibold">${p.name}</h3><p class="text-xs text-gray-600 dark:text-gray-300">${p.title || ''}</p>`;
+          header.appendChild(nameEl);
+          const saveBtn = document.createElement('button');
+          saveBtn.className = 'text-xs px-2 py-1 rounded border';
+          saveBtn.textContent = favorites[p.id] ? '保存済' : '保存';
+          saveBtn.addEventListener('click', () => {
+            favorites[p.id] = !favorites[p.id];
+            setLS('cpp_fav', favorites);
+            saveBtn.textContent = favorites[p.id] ? '保存済' : '保存';
           });
-          if (error) throw error;
+          header.appendChild(saveBtn);
+          cont.appendChild(header);
+          // Persona & meta
+          const meta = document.createElement('div');
+          meta.className = 'flex flex-wrap gap-2 text-xs text-gray-600 dark:text-gray-300 mb-2';
+          meta.innerHTML =
+            `<span>${p.persona}</span>` +
+            (p.mbti ? `<span class="px-2 py-0.5 border rounded">MBTI: ${p.mbti}</span>` : '') +
+            (p.gender ? `<span class="px-2 py-0.5 border rounded">${p.gender}</span>` : '') +
+            (p.tone ? `<span class="px-2 py-0.5 border rounded">口調: ${p.tone}</span>` : '') +
+            (p.brightness ? `<span class="px-2 py-0.5 border rounded">雰囲気: ${p.brightness}</span>` : '');
+          cont.appendChild(meta);
+          // Traits and goal
+          if (p.traits) {
+            const traitsEl = document.createElement('p');
+            traitsEl.className = 'text-sm mb-1';
+            traitsEl.textContent = `特徴: ${p.traits}`;
+            cont.appendChild(traitsEl);
+          }
+          if (p.goal) {
+            const goalEl = document.createElement('p');
+            goalEl.className = 'text-sm mb-1';
+            goalEl.textContent = `目的: ${p.goal}`;
+            cont.appendChild(goalEl);
+          }
+          // Tags
+          if (p.tags && p.tags.length) {
+            const tagsDiv = document.createElement('div');
+            tagsDiv.className = 'flex flex-wrap gap-1 mb-2';
+            p.tags.forEach((t) => {
+              const tag = document.createElement('span');
+              tag.className = 'px-2 py-0.5 bg-gray-100 dark:bg-gray-700 text-xs rounded';
+              tag.textContent = `#${t}`;
+              tagsDiv.appendChild(tag);
+            });
+            cont.appendChild(tagsDiv);
+          }
+          // Buttons
+          const btnRow = document.createElement('div');
+          btnRow.className = 'mt-auto flex flex-wrap items-center gap-2 text-xs';
+          // Like button
+          const likeBtn = document.createElement('button');
+          likeBtn.className = 'flex items-center gap-1 px-3 py-1 rounded border';
+          likeBtn.innerHTML = `❤ ${p.likes || 0}`;
+          if (likes[p.id]) {
+            likeBtn.classList.add('text-red-600');
+          }
+          likeBtn.addEventListener('click', () => {
+            if (likes[p.id]) {
+              // toggle off
+              delete likes[p.id];
+              p.likes = Math.max(0, (p.likes || 0) - 1);
+              likeBtn.classList.remove('text-red-600');
+            } else {
+              likes[p.id] = true;
+              p.likes = (p.likes || 0) + 1;
+              likeBtn.classList.add('text-red-600');
+            }
+            setLS('cpp_likes', likes);
+            likeBtn.innerHTML = `❤ ${p.likes}`;
+            render();
+          });
+          btnRow.appendChild(likeBtn);
+          // Copy button
+          const copyBtn = document.createElement('button');
+          copyBtn.className = 'flex items-center gap-1 px-3 py-1 rounded border';
+          copyBtn.innerHTML = '📋 コピー';
+          copyBtn.addEventListener('click', async () => {
+            if (copies[p.id]) return;
+            try {
+              await navigator.clipboard.writeText(p.starterPrompt);
+              copies[p.id] = true;
+              p.copies = (p.copies || 0) + 1;
+              setLS('cpp_copies', copies);
+              copyBtn.innerHTML = '✔ コピー済み';
+              render();
+            } catch (e) {}
+          });
+          btnRow.appendChild(copyBtn);
+          // Toggle prompt
+          const toggleBtn = document.createElement('button');
+          toggleBtn.className = 'px-3 py-1 rounded border';
+          toggleBtn.textContent = 'プロンプトを見る';
+          btnRow.appendChild(toggleBtn);
+          cont.appendChild(btnRow);
+          // Hidden prompt
+          const promptDiv = document.createElement('div');
+          promptDiv.className = 'mt-2 text-xs bg-gray-50 dark:bg-gray-700 rounded p-3 border hidden whitespace-pre-wrap';
+          promptDiv.textContent = p.starterPrompt + '\n\n' + (p.sampleDialog ? p.sampleDialog.map((d) => (d.role === 'user' ? 'ユーザー: ' : 'AI: ') + d.text).join('\n') : '');
+          cont.appendChild(promptDiv);
+          toggleBtn.addEventListener('click', () => {
+            const isOpen = !promptDiv.classList.contains('hidden');
+            promptDiv.classList.toggle('hidden');
+            toggleBtn.textContent = isOpen ? 'プロンプトを見る' : 'プロンプトを隠す';
+          });
+          // Append to card
+          card.appendChild(imgDiv);
+          card.appendChild(cont);
+          listEl.appendChild(card);
+        });
+      }
+      function updateTagFilter() {
+        const all = new Set();
+        presets.forEach((p) => (p.tags || []).forEach((t) => all.add(t)));
+        const tags = Array.from(all).sort();
+        tagFilterEl.innerHTML = '';
+        if (tags.length === 0) return;
+        tags.forEach((t) => {
+          const chip = document.createElement('button');
+          chip.className = 'px-2 py-1 rounded-full border text-xs ' + (selectedTags.includes(t) ? 'bg-black text-white dark:bg-white dark:text-black' : 'bg-white dark:bg-gray-700');
+          chip.textContent = '#' + t;
+          chip.addEventListener('click', () => {
+            if (selectedTags.includes(t)) {
+              selectedTags = selectedTags.filter((x) => x !== t);
+            } else {
+              selectedTags.push(t);
+            }
+            render();
+            updateTagFilter();
+          });
+          tagFilterEl.appendChild(chip);
+        });
+        if (selectedTags.length > 0) {
+          const clearBtn = document.createElement('button');
+          clearBtn.className = 'px-2 py-1 rounded-full border text-xs bg-red-100 dark:bg-red-700 text-red-600';
+          clearBtn.textContent = 'クリア';
+          clearBtn.addEventListener('click', () => {
+            selectedTags = [];
+            render();
+            updateTagFilter();
+          });
+          tagFilterEl.appendChild(clearBtn);
+        }
+      }
+      // Event listeners
+      searchInput.addEventListener('input', (e) => {
+        searchQuery = e.target.value;
+        render();
+      });
+      sortSelect.addEventListener('change', (e) => {
+        sortMode = e.target.value;
+        render();
+      });
+      openModalBtn.addEventListener('click', () => { modal.classList.remove('hidden'); });
+      closeModalBtn.addEventListener('click', () => { modal.classList.add('hidden'); });
+      submitBtn.addEventListener('click', async () => {
+        const formData = new FormData(postForm);
+        const payload = {
+          id: 'id-' + Math.random().toString(36).slice(2),
+          name: formData.get('name').trim(),
+          title: formData.get('title').trim(),
+          image: formData.get('image').trim(),
+          persona: formData.get('persona').trim(),
+          traits: formData.get('traits').trim(),
+          goal: formData.get('goal').trim(),
+          mbti: formData.get('mbti').trim(),
+          gender: formData.get('gender').trim(),
+          tone: formData.get('tone').trim(),
+          brightness: formData.get('brightness').trim(),
+          tags: formData.get('tags').split(',').map((s) => s.trim()).filter(Boolean),
+          starterPrompt: formData.get('starterPrompt').trim(),
+          sampleDialog: [
+            formData.get('sampleUser') ? { role: 'user', text: formData.get('sampleUser').trim() } : { role: 'user', text: 'こんにちは。' },
+            formData.get('sampleAssistant') ? { role: 'assistant', text: formData.get('sampleAssistant').trim() } : { role: 'assistant', text: 'はじめまして。今日はどんな話をしますか？' },
+          ],
+          likes: 0,
+          copies: 0,
+          createdAt: Date.now(),
         };
-        const signOut = async () => { if (supabase) await supabase.auth.signOut(); };
-        return { session, loading, inviteOK, isAdmin, signInWithEmail, signOut };
-      }
-
-      // Components
-      function ThemeToggle({ dark, onToggle }) {
-        return (
-          <button
-            onClick={onToggle}
-            className="inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-sm backdrop-blur bg-white/60 dark:bg-white/5 hover:bg-white/80 dark:hover:bg-white/10 transition"
-            aria-label="テーマ切替"
-          >
-            {dark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
-            <span className="hidden sm:inline">{dark ? "ライト" : "ダーク"}</span>
-          </button>
-        );
-      }
-
-      function Pill({ active, children, onClick }) {
-        return (
-          <button
-            onClick={onClick}
-            className={classNames(
-              'px-3 py-1 rounded-full border text-sm',
-              active
-                ? 'bg-black text-white dark:bg-white dark:text-black'
-                : 'bg-white/80 dark:bg-white/10 hover:bg-white/90 dark:hover:bg-white/15 backdrop-blur'
-            )}
-          >
-            {children}
-          </button>
-        );
-      }
-
-      function Glass({ children, ring = 'from-violet-400/20 to-emerald-400/20' }) {
-        return (
-          <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.25 }}
-            className={classNames(
-              'relative rounded-2xl border bg-white/60 dark:bg-white/5 backdrop-blur p-5 shadow-[0_10px_30px_-10px_rgba(0,0,0,0.25)]',
-              'before:absolute before:inset-0 before:rounded-2xl before:-z-10 before:blur-xl before:bg-gradient-to-br',
-              ring
-            )}
-          >
-            {children}
-          </motion.div>
-        );
-      }
-
-      function CopyButton({ text, onCopied }) {
-        const [copied, setCopied] = useState(false);
-        return (
-          <button
-            onClick={async () => {
-              try {
-                await navigator.clipboard.writeText(text);
-                setCopied(true);
-                onCopied?.();
-                setTimeout(() => setCopied(false), 1200);
-              } catch (e) {}
-            }}
-            className="inline-flex items-center gap-2 rounded-lg border px-3 py-1.5 text-sm bg-white/70 dark:bg-white/10 hover:bg-white/90 dark:hover:bg-white/20 backdrop-blur"
-          >
-            {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
-            <span>{copied ? 'コピー済み' : 'プロンプトをコピー'}</span>
-          </button>
-        );
-      }
-
-      // Preset Card component
-      function PresetCard({ preset, onCopy, onLike, fav, onFav, liked }) {
-        const [open, setOpen] = useState(false);
-        return (
-          <Glass>
-            <div className="grid md:grid-cols-3 gap-0 overflow-hidden rounded-xl">
-              <div className="relative md:col-span-1">
-                <img src={preset.image} alt={preset.name} className="w-full h-full object-cover rounded-xl md:rounded-l-xl" />
-                <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent text-white p-3 rounded-b-xl md:rounded-bl-xl md:rounded-br-none">
-                  <h3 className="text-lg font-semibold">{preset.name}</h3>
-                  <p className="text-xs opacity-90">{preset.title}</p>
-                </div>
-              </div>
-              <div className="md:col-span-2 p-5">
-                <div className="flex flex-wrap items-center gap-2 text-xs text-gray-600 dark:text-gray-300">
-                  <span className="inline-flex items-center gap-1"><HeartHandshake className="h-4 w-4"/> {preset.persona}</span>
-                  <span className="px-2 py-0.5 rounded-full border">MBTI: {preset.mbti}</span>
-                  <span className="px-2 py-0.5 rounded-full border">{preset.gender}</span>
-                  <span className="px-2 py-0.5 rounded-full border">口調: {preset.tone}</span>
-                  <span className="px-2 py-0.5 rounded-full border">雰囲気: {preset.brightness}</span>
-                </div>
-                <p className="text-sm text-gray-700 dark:text-gray-200 mt-3">特徴: {preset.traits}</p>
-                <p className="text-sm text-gray-700 dark:text-gray-200">目的: {preset.goal}</p>
-                <div className="flex flex-wrap gap-2 my-3">
-                  {preset.tags.map((t) => (
-                    <span key={t} className="px-2 py-1 rounded-full text-xs bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300">#{t}</span>
-                  ))}
-                </div>
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={onLike}
-                    className={classNames(
-                      'inline-flex items-center gap-1 rounded-lg border px-3 py-1.5 text-sm bg-white/70 dark:bg-white/10 hover:bg-white/90 dark:hover:bg-white/20',
-                      liked ? 'text-red-500' : ''
-                    )}
-                  >
-                    <Heart className="h-4 w-4" fill={liked ? 'currentColor' : 'none'} /> {preset.likes}
-                  </button>
-                  <CopyButton text={preset.starterPrompt} onCopied={onCopy} />
-                  <button
-                    onClick={() => setOpen((o) => !o)}
-                    className="inline-flex items                                                                                                                                                                                                                                                                
+        if (!payload.name || !payload.starterPrompt) {
+          alert('必須項目を入力してください。');
+          return;
+        }
+        // Insert into Supabase if available
+        if (supabase) {
+          try {
+            const { error } = await supabase.from('presets').insert({
+              name: payload.name,
+              title: payload.title,
+              image_url: payload.image,
+              persona: payload.persona,
+              traits: payload.traits,
+              goal: payload.goal,
+              mbti: payload.mbti,
+              gender: payload.gender,
+              tone: payload.tone,
+              brightness: payload.brightness,
+              tags: payload.tags,
+              prompt: payload.starterPrompt,
+              sample: payload.sampleDialog,
+              status: 'public',
+            });
+            if (error) throw error;
+          } catch (e) {
+            console.warn('Supabase保存に失敗、ローカルのみ', e);
+          }
+        }
+        // Insert locally and re-render
+        presets.unshift(payload);
+        render();
+        updateTagFilter();
+        postForm.reset();
+        modal.classList.add('hidden');
+      });
+      // Theme toggle
+      themeToggle.addEventListener('click', () => {
+        document.documentElement.classList.toggle('dark');
+      });
+      // Set current year
+      document.getElementById('year').textContent = new Date().getFullYear();
+      // Load presets
+      loadPresets();
+    })();
+  </script>
+</body>
+</html>
