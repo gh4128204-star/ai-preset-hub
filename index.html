@@ -103,13 +103,10 @@
           <span class="text-xs text-gray-500">スタータープロンプト*</span>
           <textarea name="starterPrompt" rows="3" required class="w-full rounded-xl border px-3 py-2 bg-white/80 dark:bg-gray-700" placeholder="そのままコピーできる指示文"></textarea>
         </label>
+        <!-- サンプル会話を1つのフィールドに統合 -->
         <label class="grid gap-1 sm:col-span-2">
-          <span class="text-xs text-gray-500">サンプル会話 (ユーザー)</span>
-          <textarea name="sampleUser" rows="2" class="w-full rounded-xl border px-3 py-2 bg-white/80 dark:bg-gray-700"></textarea>
-        </label>
-        <label class="grid gap-1 sm:col-span-2">
-          <span class="text-xs text-gray-500">サンプル会話 (AI)</span>
-          <textarea name="sampleAssistant" rows="2" class="w-full rounded-xl border px-3 py-2 bg-white/80 dark:bg-gray-700"></textarea>
+          <span class="text-xs text-gray-500">サンプル会話</span>
+          <textarea name="sampleConversation" rows="4" class="w-full rounded-xl border px-3 py-2 bg-white/80 dark:bg-gray-700" placeholder="例: ユーザーとAIの会話を自由に記入"></textarea>
         </label>
       </form>
       <div class="mt-4 flex justify-between items-center text-xs text-gray-500 dark:text-gray-400">
@@ -261,7 +258,8 @@
         }
         filtered.forEach((p) => {
           const card = document.createElement('div');
-          card.className = 'rounded-2xl border overflow-hidden shadow-md bg-white dark:bg-gray-800 flex flex-col md:flex-row';
+          // お気に入りの場合は青い枠を付ける
+          card.className = 'rounded-2xl overflow-hidden shadow-md flex flex-col md:flex-row ' + (favorites[p.id] ? 'border-blue-500' : 'border');
           // Image
           const imgDiv = document.createElement('div');
           imgDiv.className = 'md:w-1/3 h-40 md:h-auto overflow-hidden';
@@ -282,9 +280,11 @@
           saveBtn.className = 'text-xs px-2 py-1 rounded border';
           saveBtn.textContent = favorites[p.id] ? '保存済' : '保存';
           saveBtn.addEventListener('click', () => {
+            // お気に入り状態をトグル
             favorites[p.id] = !favorites[p.id];
             setLS('cpp_fav', favorites);
-            saveBtn.textContent = favorites[p.id] ? '保存済' : '保存';
+            // 全体を再描画してボタン文字とカード枠を更新
+            render();
           });
           header.appendChild(saveBtn);
           cont.appendChild(header);
@@ -354,15 +354,21 @@
           copyBtn.className = 'flex items-center gap-1 px-3 py-1 rounded border';
           copyBtn.innerHTML = '📋 コピー';
           copyBtn.addEventListener('click', async () => {
-            if (copies[p.id]) return;
             try {
               await navigator.clipboard.writeText(p.starterPrompt);
-              copies[p.id] = true;
+              // コピー回数を増やす（1クリックごとにカウントアップ）
               p.copies = (p.copies || 0) + 1;
+              // コピー状態を保存（複数回コピー可）
+              copies[p.id] = true;
               setLS('cpp_copies', copies);
+              // 一時的にコピー済みと表示
               copyBtn.innerHTML = '✔ コピー済み';
+              // 1秒後に元に戻す
+              setTimeout(() => { copyBtn.innerHTML = '📋 コピー'; }, 1200);
               render();
-            } catch (e) {}
+            } catch (e) {
+              console.warn('コピーに失敗', e);
+            }
           });
           btnRow.appendChild(copyBtn);
           // Toggle prompt
@@ -374,7 +380,17 @@
           // Hidden prompt
           const promptDiv = document.createElement('div');
           promptDiv.className = 'mt-2 text-xs bg-gray-50 dark:bg-gray-700 rounded p-3 border hidden whitespace-pre-wrap';
-          promptDiv.textContent = p.starterPrompt + '\n\n' + (p.sampleDialog ? p.sampleDialog.map((d) => (d.role === 'user' ? 'ユーザー: ' : 'AI: ') + d.text).join('\n') : '');
+          // プロンプトの下にサンプル会話を表示。sampleConversationがあればそれを、その次に従来のsampleDialog形式にも対応
+          let sampleText = '';
+          if (p.sampleConversation) {
+            sampleText = p.sampleConversation;
+          } else if (p.sampleDialog && Array.isArray(p.sampleDialog) && p.sampleDialog.length) {
+            sampleText = p.sampleDialog.map((d) => {
+              const prefix = d.role === 'user' ? 'ユーザー: ' : d.role === 'assistant' ? 'AI: ' : '';
+              return prefix + d.text;
+            }).join('\n');
+          }
+          promptDiv.textContent = p.starterPrompt + '\n\n' + sampleText;
           cont.appendChild(promptDiv);
           toggleBtn.addEventListener('click', () => {
             const isOpen = !promptDiv.classList.contains('hidden');
@@ -447,10 +463,13 @@
           brightness: formData.get('brightness').trim(),
           tags: formData.get('tags').split(',').map((s) => s.trim()).filter(Boolean),
           starterPrompt: formData.get('starterPrompt').trim(),
-          sampleDialog: [
-            formData.get('sampleUser') ? { role: 'user', text: formData.get('sampleUser').trim() } : { role: 'user', text: 'こんにちは。' },
-            formData.get('sampleAssistant') ? { role: 'assistant', text: formData.get('sampleAssistant').trim() } : { role: 'assistant', text: 'はじめまして。今日はどんな話をしますか？' },
-          ],
+          // サンプル会話は1つのテキストを行ごとに分割して配列化し、表示用に文字列も保持
+          sampleConversation: formData.get('sampleConversation').trim(),
+          sampleDialog: (() => {
+            const txt = formData.get('sampleConversation').trim();
+            if (!txt) return [];
+            return txt.split('\n').map((line) => ({ role: 'user', text: line }));
+          })(),
           likes: 0,
           copies: 0,
           createdAt: Date.now(),
