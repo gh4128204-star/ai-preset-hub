@@ -62,6 +62,11 @@
           <span class="text-xs text-gray-500">画像URL</span>
           <input name="image" class="w-full rounded-xl border px-3 py-2 bg-white/80 dark:bg-gray-700" placeholder="https://..." />
         </label>
+        <!-- 画像ファイルアップロード: ここでローカルの画像ファイルを選択できます。入力がある場合はURLより優先されます -->
+        <label class="grid gap-1">
+          <span class="text-xs text-gray-500">画像ファイル</span>
+          <input type="file" name="imageFile" accept="image/*" class="w-full rounded-xl border px-3 py-2 bg-white/80 dark:bg-gray-700" />
+        </label>
         <label class="grid gap-1">
           <span class="text-xs text-gray-500">MBTI</span>
           <input name="mbti" class="w-full rounded-xl border px-3 py-2 bg-white/80 dark:bg-gray-700" placeholder="例: ENFP" />
@@ -450,6 +455,21 @@
           copies: 0,
           createdAt: Date.now(),
         };
+        // 画像ファイルが選択されている場合は、ファイルをDataURLに変換してURL入力より優先します
+        const imageFile = formData.get('imageFile');
+        if (imageFile && imageFile instanceof File && imageFile.size > 0) {
+          try {
+            const dataUrl = await new Promise((resolve, reject) => {
+              const reader = new FileReader();
+              reader.onload = () => resolve(reader.result);
+              reader.onerror = (err) => reject(err);
+              reader.readAsDataURL(imageFile);
+            });
+            payload.image = dataUrl;
+          } catch (e) {
+            console.warn('画像ファイルの読み込みに失敗しました', e);
+          }
+        }
         if (!payload.name || !payload.starterPrompt) {
           alert('必須項目を入力してください。');
           return;
