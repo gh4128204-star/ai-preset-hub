@@ -58,14 +58,10 @@
           <span class="text-xs text-gray-500">タイトル</span>
           <input name="title" class="w-full rounded-xl border px-3 py-2 bg-white/80 dark:bg-gray-700" />
         </label>
+        <!-- 画像ファイルアップロードのみ許可。画像URL欄は廃止 -->
         <label class="grid gap-1">
-          <span class="text-xs text-gray-500">画像URL</span>
-          <input name="image" class="w-full rounded-xl border px-3 py-2 bg-white/80 dark:bg-gray-700" placeholder="https://..." />
-        </label>
-        <!-- 画像ファイルアップロード: ここでローカルの画像ファイルを選択できます。入力がある場合はURLより優先されます -->
-        <label class="grid gap-1">
-          <span class="text-xs text-gray-500">画像ファイル</span>
-          <input type="file" name="imageFile" accept="image/*" class="w-full rounded-xl border px-3 py-2 bg-white/80 dark:bg-gray-700" />
+          <span class="text-xs text-gray-500">画像ファイル*</span>
+          <input type="file" name="imageFile" accept="image/*" required class="w-full rounded-xl border px-3 py-2 bg-white/80 dark:bg-gray-700" />
         </label>
         <label class="grid gap-1">
           <span class="text-xs text-gray-500">MBTI</span>
@@ -333,8 +329,9 @@
           if (likes[p.id]) {
             likeBtn.classList.add('text-red-600');
           }
-          likeBtn.addEventListener('click', () => {
-            if (likes[p.id]) {
+          likeBtn.addEventListener('click', async () => {
+            const already = !!likes[p.id];
+            if (already) {
               // toggle off
               delete likes[p.id];
               p.likes = Math.max(0, (p.likes || 0) - 1);
@@ -346,6 +343,14 @@
             }
             setLS('cpp_likes', likes);
             likeBtn.innerHTML = `❤ ${p.likes}`;
+            // サーバ側に反映
+            if (supabase) {
+              try {
+                await supabase.from('presets').update({ likes: p.likes }).eq('id', p.id);
+              } catch (e) {
+                console.warn('いいね更新に失敗', e);
+              }
+            }
             render();
           });
           btnRow.appendChild(likeBtn);
@@ -358,12 +363,21 @@
               await navigator.clipboard.writeText(p.starterPrompt);
               // コピー回数を増やす（1クリックごとにカウントアップ）
               p.copies = (p.copies || 0) + 1;
-              // コピー状態を保存（複数回コピー可）
-              copies[p.id] = true;
-              setLS('cpp_copies', copies);
+              // 1人1回制限: 初回以外はカウントアップしない
+              if (!copies[p.id]) {
+                copies[p.id] = true;
+                setLS('cpp_copies', copies);
+              }
+              // サーバ側に反映
+              if (supabase) {
+                try {
+                  await supabase.from('presets').update({ copies: p.copies }).eq('id', p.id);
+                } catch (e) {
+                  console.warn('コピー数更新に失敗', e);
+                }
+              }
               // 一時的にコピー済みと表示
               copyBtn.innerHTML = '✔ コピー済み';
-              // 1秒後に元に戻す
               setTimeout(() => { copyBtn.innerHTML = '📋 コピー'; }, 1200);
               render();
             } catch (e) {
@@ -449,11 +463,19 @@
       closeModalBtn.addEventListener('click', () => { modal.classList.add('hidden'); });
       submitBtn.addEventListener('click', async () => {
         const formData = new FormData(postForm);
+        // 投稿レート制限: 1日最大5件
+        const todayKey = new Date().toISOString().slice(0, 10);
+        const currentCount = getLS('cpp_post_count_' + todayKey, 0);
+        if (currentCount >= 5) {
+          alert('投稿上限に達しました（1日最大5件）。明日以降にお試しください。');
+          return;
+        }
+
         const payload = {
           id: 'id-' + Math.random().toString(36).slice(2),
           name: formData.get('name').trim(),
           title: formData.get('title').trim(),
-          image: formData.get('image').trim(),
+          image: '', // 画像URLはファイルアップロード後に設定
           persona: formData.get('persona').trim(),
           traits: formData.get('traits').trim(),
           goal: formData.get('goal').trim(),
@@ -474,19 +496,46 @@
           copies: 0,
           createdAt: Date.now(),
         };
-        // 画像ファイルが選択されている場合は、ファイルをDataURLに変換してURL入力より優先します
+        // 画像ファイルが選択されている場合は Supabase Storage にアップロードし、取得したURLを使う
         const imageFile = formData.get('imageFile');
         if (imageFile && imageFile instanceof File && imageFile.size > 0) {
-          try {
-            const dataUrl = await new Promise((resolve, reject) => {
-              const reader = new FileReader();
-              reader.onload = () => resolve(reader.result);
-              reader.onerror = (err) => reject(err);
-              reader.readAsDataURL(imageFile);
-            });
-            payload.image = dataUrl;
-          } catch (e) {
-            console.warn('画像ファイルの読み込みに失敗しました', e);
+          if (supabase) {
+            try {
+              const ext = imageFile.name.split('.').pop() || 'png';
+              const fileName = `${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+              const { data: uploadData, error: uploadError } = await supabase.storage.from('images').upload(fileName, imageFile, { cacheControl: '3600', upsert: true });
+              if (uploadError) throw uploadError;
+              const { data: publicData, error: urlError } = supabase.storage.from('images').getPublicUrl(fileName);
+              if (urlError) throw urlError;
+              payload.image = publicData.publicUrl;
+            } catch (e) {
+              console.warn('画像のアップロードに失敗しました', e);
+              // フォールバック: DataURL を使用
+              try {
+                const dataUrl = await new Promise((resolve, reject) => {
+                  const reader = new FileReader();
+                  reader.onload = () => resolve(reader.result);
+                  reader.onerror = (err) => reject(err);
+                  reader.readAsDataURL(imageFile);
+                });
+                payload.image = dataUrl;
+              } catch (ee) {
+                console.warn('画像ファイルの読み込みにも失敗しました', ee);
+              }
+            }
+          } else {
+            // Supabaseが利用できない場合は DataURL に変換
+            try {
+              const dataUrl = await new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = () => resolve(reader.result);
+                reader.onerror = (err) => reject(err);
+                reader.readAsDataURL(imageFile);
+              });
+              payload.image = dataUrl;
+            } catch (e) {
+              console.warn('画像ファイルの読み込みに失敗しました', e);
+            }
           }
         }
         if (!payload.name || !payload.starterPrompt) {
@@ -521,6 +570,8 @@
         presets.unshift(payload);
         render();
         updateTagFilter();
+        // 投稿回数を更新（1日あたりの投稿制限）
+        setLS('cpp_post_count_' + todayKey, currentCount + 1);
         postForm.reset();
         modal.classList.add('hidden');
       });
